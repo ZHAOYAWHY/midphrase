@@ -260,13 +260,18 @@ def import_phrases(text: str) -> tuple[list[Phrase], list[str]]:
 
 
 def load_import(text: str) -> tuple[list[Phrase], list[str], str]:
-    """Parse a phrase file and resolve duplicate short names.
+    """Parse a phrase file and resolve duplicate short names inside that file."""
+    phrases, errors = parse_phrase_file(text)
+    if errors:
+        return [], errors, ""
+    resolved, note = merge_phrases([], phrases)
+    return resolved, [], note
 
-    Returns phrases, errors, and a short Chinese note when rows were dropped
-    or renamed. Any format error rejects the whole file.
-    """
+
+def parse_phrase_file(text: str) -> tuple[list[Phrase], list[str]]:
+    """Read phrase lines without applying conflict suffixes yet."""
     if "\x00" in text:
-        return [], ["文件含有二进制内容，已拒绝导入"], ""
+        return [], ["文件含有二进制内容，已拒绝导入"]
     phrases: list[Phrase] = []
     errors: list[str] = []
     for number, raw in enumerate(text.splitlines(), start=1):
@@ -292,11 +297,21 @@ def load_import(text: str) -> tuple[list[Phrase], list[str], str]:
             full = short
         phrases.append(Phrase(short, full))
     if errors:
-        return [], errors, ""
-    unique = _drop_exact_duplicates(phrases)
-    resolved = _resolve_import_conflicts(phrases)
+        return [], errors
+    return phrases, []
+
+
+def merge_phrases(existing: list[Phrase], incoming: list[Phrase]) -> tuple[list[Phrase], str]:
+    """Keep earlier phrases, then apply the same conflict rules to the whole list.
+
+    Existing phrases come first, so they keep their short names. Conflicts already
+    present in the imported file are resolved in the same pass, after those.
+    """
+    combined = [*existing, *incoming]
+    unique = _drop_exact_duplicates(combined)
+    resolved = _resolve_import_conflicts(combined)
     renamed = sum(before.label != after.label for before, after in zip(unique, resolved))
-    return resolved, [], _import_note(len(phrases) - len(unique), renamed)
+    return resolved, _import_note(len(combined) - len(unique), renamed)
 
 
 def _import_note(dropped: int, renamed: int) -> str:

@@ -2,7 +2,7 @@
 
 import unittest
 
-from midphrase.logic import Phrase, export_phrases, import_phrases, load_import
+from midphrase.logic import Phrase, export_phrases, import_phrases, load_import, merge_phrases
 
 
 class PhraseExchangeTest(unittest.TestCase):
@@ -75,6 +75,33 @@ class PhraseExchangeTest(unittest.TestCase):
         self.assertEqual(phrases, [Phrase("问候", "你好"), Phrase("问候-1", "早上好")])
         self.assertIn("去掉 1 条", note)
         self.assertIn("-1", note)
+
+    def test_merge_keeps_existing_and_suffixes_imported_conflict(self):
+        merged, note = merge_phrases(
+            [Phrase("问候", "你好"), Phrase("问候-1", "已占用")],
+            [Phrase("问候", "你好"), Phrase("问候", "早上好")],
+        )
+        self.assertEqual(
+            merged,
+            [Phrase("问候", "你好"), Phrase("问候-1", "已占用"), Phrase("问候-2", "早上好")],
+        )
+        self.assertIn("去掉 1 条", note)
+        self.assertIn("-1", note)
+
+    def test_merge_resolves_conflicts_already_inside_the_file(self):
+        merged, _note = merge_phrases(
+            [Phrase("问候", "你好")],
+            [Phrase("问候", "早上好"), Phrase("问候", "晚上好"), Phrase("收到", "收到")],
+        )
+        self.assertEqual(
+            merged,
+            [
+                Phrase("问候", "你好"),
+                Phrase("问候-1", "早上好"),
+                Phrase("问候-2", "晚上好"),
+                Phrase("收到", "收到"),
+            ],
+        )
 
 
 if __name__ == "__main__":

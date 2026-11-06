@@ -32,7 +32,8 @@ from midphrase.logic import (
     row_caption,
     export_filename,
     export_phrases,
-    load_import,
+    merge_phrases,
+    parse_phrase_file,
 )
 from midphrase.overlay import GlassPopup, place_popup, render_popup, render_tray_icon
 
@@ -572,16 +573,26 @@ class App:
         win = tk.Toplevel(self.root)
         win.title("编辑短语")
         win.geometry("560x420")
+        win.minsize(560, 420)
         win.configure(bg="#1c1f26")
         win.attributes("-topmost", True)
-        listbox = tk.Listbox(win, bg="#111317", fg="white", selectbackground="#3b82f6", font=("Microsoft YaHei UI", 11), activestyle="none")
-        listbox.place(x=16, y=16, width=180, height=330)
-        tk.Label(win, text="简介", bg="#1c1f26", fg="#d5dbe8", anchor="w", font=("Microsoft YaHei UI", 9)).place(x=212, y=12, width=80, height=18)
-        label = tk.Entry(win, bg="#111317", fg="white", insertbackground="white", font=("Microsoft YaHei UI", 11))
-        label.place(x=212, y=32, width=332, height=32)
-        tk.Label(win, text="全短语（松开后发送）", bg="#1c1f26", fg="#d5dbe8", anchor="w", font=("Microsoft YaHei UI", 9)).place(x=212, y=70, width=200, height=18)
-        body = tk.Text(win, bg="#111317", fg="white", insertbackground="white", font=("Microsoft YaHei UI", 11), wrap="word")
-        body.place(x=212, y=90, width=332, height=218)
+        win.columnconfigure(0, minsize=196, weight=0)
+        win.columnconfigure(1, weight=1)
+        win.rowconfigure(0, weight=1)
+        listbox = tk.Listbox(win, bg="#111317", fg="white", selectbackground="#3b82f6", font=("Microsoft YaHei UI", 11), activestyle="none", exportselection=False)
+        listbox.grid(row=0, column=0, sticky="nsew", padx=(16, 8), pady=(16, 8))
+        form = tk.Frame(win, bg="#1c1f26")
+        form.grid(row=0, column=1, sticky="nsew", padx=(8, 16), pady=(12, 8))
+        form.columnconfigure(0, weight=1)
+        form.rowconfigure(3, weight=1)
+        tk.Label(form, text="简介", bg="#1c1f26", fg="#d5dbe8", anchor="w", font=("Microsoft YaHei UI", 9)).grid(row=0, column=0, sticky="ew")
+        label = tk.Entry(form, bg="#111317", fg="white", insertbackground="white", font=("Microsoft YaHei UI", 11))
+        label.grid(row=1, column=0, sticky="ew", pady=(4, 10), ipady=6)
+        tk.Label(form, text="全短语（松开后发送）", bg="#1c1f26", fg="#d5dbe8", anchor="w", font=("Microsoft YaHei UI", 9)).grid(row=2, column=0, sticky="ew")
+        body = tk.Text(form, bg="#111317", fg="white", insertbackground="white", font=("Microsoft YaHei UI", 11), wrap="word")
+        body.grid(row=3, column=0, sticky="nsew", pady=(4, 0))
+
+        selected = {"index": 0}
 
         def refresh(select: int = 0) -> None:
             listbox.delete(0, tk.END)
@@ -595,6 +606,7 @@ class App:
             picked = listbox.curselection()
             if not picked:
                 return
+            selected["index"] = picked[0]
             phrase = self.phrases[picked[0]]
             label.delete(0, tk.END)
             label.insert(0, phrase.label)
@@ -604,8 +616,9 @@ class App:
         def collect() -> list[dict]:
             items = [{"label": phrase.label, "text": phrase.text} for phrase in self.phrases]
             picked = listbox.curselection()
-            if picked:
-                items[picked[0]] = {"label": label.get().strip(), "text": body.get("1.0", tk.END).strip()}
+            index = picked[0] if picked else selected["index"]
+            if items and 0 <= index < len(items):
+                items[index] = {"label": label.get().strip(), "text": body.get("1.0", tk.END).strip()}
             return items
 
         def persist(select: int = 0) -> None:
@@ -630,11 +643,13 @@ class App:
             refresh(0)
 
         listbox.bind("<<ListboxSelect>>", show)
-        tk.Button(win, text="添加", command=add).place(x=16, y=360, width=84, height=32)
-        tk.Button(win, text="删除", command=delete).place(x=112, y=360, width=84, height=32)
-        tk.Button(win, text="导入", command=lambda: self.events.put(("import",))).place(x=212, y=360, width=72, height=32)
-        tk.Button(win, text="导出", command=lambda: self.events.put(("export",))).place(x=292, y=360, width=72, height=32)
-        tk.Button(win, text="保存", command=lambda: persist(listbox.curselection()[0] if listbox.curselection() else 0)).place(x=460, y=360, width=84, height=32)
+        buttons = tk.Frame(win, bg="#1c1f26")
+        buttons.grid(row=1, column=0, columnspan=2, sticky="ew", padx=16, pady=(0, 16))
+        tk.Button(buttons, text="添加", command=add, width=8).pack(side="left", padx=(0, 8))
+        tk.Button(buttons, text="删除", command=delete, width=8).pack(side="left", padx=(0, 8))
+        tk.Button(buttons, text="导入", command=lambda: self.events.put(("import",)), width=8).pack(side="left", padx=(0, 8))
+        tk.Button(buttons, text="导出", command=lambda: self.events.put(("export",)), width=8).pack(side="left")
+        tk.Button(buttons, text="保存", command=lambda: persist(listbox.curselection()[0] if listbox.curselection() else selected["index"]), width=8).pack(side="right")
         refresh(0)
         self.editor = win
 
@@ -742,28 +757,76 @@ class App:
         except UnicodeDecodeError:
             messagebox.showerror("导入失败", "文件不是 UTF-8，未替换现有短语。", parent=self._dialog_parent())
             return
-        phrases, errors, note = load_import(text)
+        phrases, errors = parse_phrase_file(text)
         parent = self._dialog_parent()
         if errors:
-            messagebox.showerror("导入失败", "未替换现有短语。\n" + "\n".join(errors[:8]), parent=parent)
+            messagebox.showerror("导入失败", "未改动现有短语。\n" + "\n".join(errors[:8]), parent=parent)
             return
         if not phrases:
-            messagebox.showwarning("导入失败", "文件里没有可用短语，未替换现有内容。", parent=parent)
+            messagebox.showwarning("导入失败", "文件里没有可用短语，未改动现有内容。", parent=parent)
             return
+        mode = self._ask_import_mode(parent, len(phrases), len(self.phrases))
+        if mode is None:
+            return
+        if mode == "merge":
+            merged, note = merge_phrases(self.phrases, phrases)
+            action = "已增量导入"
+        else:
+            merged, note = merge_phrases([], phrases)
+            action = "已全部替换"
         detail = f"\n{note}。" if note else ""
-        if self.phrases and not messagebox.askyesno(
-            "导入短语",
-            f"将用文件中的 {len(phrases)} 条替换当前 {len(self.phrases)} 条。{detail}继续？",
-            parent=parent,
-        ):
-            return
         with self.lock:
-            self.phrases = self.store.save([{"label": item.label, "text": item.text} for item in phrases])
+            self.phrases = self.store.save([{"label": item.label, "text": item.text} for item in merged])
         if self.editor is not None and self.editor.winfo_exists():
             self.editor.destroy()
             self.editor = None
             self._open_editor()
-        messagebox.showinfo("导入短语", f"已导入 {len(phrases)} 条。{detail}", parent=self._dialog_parent())
+        messagebox.showinfo("导入短语", f"{action}，当前共 {len(self.phrases)} 条。{detail}", parent=self._dialog_parent())
+
+    def _ask_import_mode(self, parent: tk.Misc, incoming: int, current: int) -> str | None:
+        choice: dict[str, str | None] = {"mode": None}
+        dialog = tk.Toplevel(parent)
+        dialog.title("导入短语")
+        dialog.configure(bg="#1c1f26")
+        dialog.attributes("-topmost", True)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        text = (
+            f"文件里有 {incoming} 条，当前有 {current} 条。\n\n"
+            "增量导入：保留现有短语，再加入文件中的短语。现有短语算第一条。\n"
+            "全部替换：用文件内容覆盖当前列表。\n\n"
+            "两种方式都会处理冲突，包括文件里已经存在的冲突：\n"
+            "简称和全短语都相同的只保留一条；\n"
+            "简称相同但全短语不同的，第一条保持原简介，后面的加上 -1、-2，编号被占用就跳过。"
+        )
+        tk.Label(
+            dialog,
+            text=text,
+            bg="#1c1f26",
+            fg="white",
+            justify="left",
+            anchor="w",
+            font=("Microsoft YaHei UI", 10),
+            wraplength=420,
+        ).pack(padx=18, pady=(16, 10), anchor="w")
+
+        def choose(mode: str) -> None:
+            choice["mode"] = mode
+            dialog.destroy()
+
+        bar = tk.Frame(dialog, bg="#1c1f26")
+        bar.pack(pady=(0, 16))
+        tk.Button(bar, text="增量导入", width=12, command=lambda: choose("merge")).pack(side="left", padx=6)
+        tk.Button(bar, text="全部替换", width=12, command=lambda: choose("replace")).pack(side="left", padx=6)
+        tk.Button(bar, text="取消", width=8, command=dialog.destroy).pack(side="left", padx=6)
+        dialog.update_idletasks()
+        width = max(dialog.winfo_reqwidth(), 460)
+        height = dialog.winfo_reqheight()
+        screen_w = dialog.winfo_screenwidth()
+        screen_h = dialog.winfo_screenheight()
+        dialog.geometry(f"{width}x{height}+{(screen_w - width) // 2}+{(screen_h - height) // 2}")
+        dialog.wait_window()
+        return choice["mode"]
 
 
 def _short(text: str, limit: int) -> str:
