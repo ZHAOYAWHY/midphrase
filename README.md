@@ -29,7 +29,7 @@ Windows 可能提示未知发布者，选择仍要运行。部分杀毒软件会
 需要 Windows 和 Python 3。
 
 ```bat
-py -3 -m phrase_wheel
+py -3 -m midphrase
 ```
 
 也可以双击 `启动短语轮盘.bat`。已经在运行时再开一次不会重复挂钩。

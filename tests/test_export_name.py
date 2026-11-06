@@ -3,7 +3,7 @@
 import unittest
 from datetime import datetime
 
-from phrase_wheel.logic import export_filename
+from midphrase.logic import export_filename
 
 
 class ExportFilenameTest(unittest.TestCase):

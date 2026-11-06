@@ -2,7 +2,7 @@
 
 import unittest
 
-from phrase_wheel.logic import Phrase, row_caption
+from midphrase.logic import Phrase, row_caption
 
 
 class RowCaptionTest(unittest.TestCase):

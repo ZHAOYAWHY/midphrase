@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from phrase_wheel.logic import PhraseStore
+from midphrase.logic import PhraseStore
 
 
 class PhraseStoreTest(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 import unittest
 
-from phrase_wheel.logic import Phrase, export_phrases, import_phrases, load_import
+from midphrase.logic import Phrase, export_phrases, import_phrases, load_import
 
 
 class PhraseExchangeTest(unittest.TestCase):

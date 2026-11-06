@@ -2,7 +2,7 @@
 
 import unittest
 
-from phrase_wheel.logic import list_index
+from midphrase.logic import list_index
 
 
 class ListIndexTest(unittest.TestCase):

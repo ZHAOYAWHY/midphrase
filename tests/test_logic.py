@@ -2,7 +2,7 @@
 
 import unittest
 
-from phrase_wheel.logic import Gesture, sector_index
+from midphrase.logic import Gesture, sector_index
 
 
 class SectorIndexTest(unittest.TestCase):

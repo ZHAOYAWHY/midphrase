@@ -20,7 +20,7 @@ from tkinter import filedialog, messagebox
 from ctypes import wintypes
 from pathlib import Path
 
-from phrase_wheel.logic import (
+from midphrase.logic import (
     DISPLAY_BOTH,
     DISPLAY_BRIEF,
     DISPLAY_FULL,
@@ -34,9 +34,9 @@ from phrase_wheel.logic import (
     export_phrases,
     load_import,
 )
-from phrase_wheel.overlay import GlassPopup, place_popup, render_popup, render_tray_icon
+from midphrase.overlay import GlassPopup, place_popup, render_popup, render_tray_icon
 
-log = logging.getLogger("phrase_wheel")
+log = logging.getLogger("midphrase")
 
 WH_MOUSE_LL = 14
 WM_MBUTTONDOWN = 0x0207
@@ -789,7 +789,7 @@ def _single_instance() -> bool:
 def main() -> None:
     data_dir().mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        filename=str(data_dir() / "phrase_wheel.log"),
+        filename=str(data_dir() / "midphrase.log"),
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         encoding="utf-8",

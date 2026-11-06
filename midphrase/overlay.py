@@ -5,7 +5,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 
-from phrase_wheel.logic import PAD, PANEL_WIDTH, PopupMetrics, SHADOW, popup_metrics
+from midphrase.logic import PAD, PANEL_WIDTH, PopupMetrics, SHADOW, popup_metrics
 
 user32 = ctypes.windll.user32
 gdi32 = ctypes.windll.gdi32

@@ -2,7 +2,7 @@
 
 import unittest
 
-from phrase_wheel.logic import hit_row, popup_metrics
+from midphrase.logic import hit_row, popup_metrics
 
 
 class PopupMetricsTest(unittest.TestCase):
