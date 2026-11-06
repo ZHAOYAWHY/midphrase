@@ -18,7 +18,7 @@ Windows 可能提示未知发布者，选择仍要运行。部分杀毒软件会
 - 全短语：松开后实际粘贴的文字
 - 显示方式：简介、全短语、简介+全短语
 
-数据保存在 `%APPDATA%\PhraseWheel\phrases.json`。
+数据保存在 `%APPDATA%\midphrase\phrases.json`。如果以前保存在 `PhraseWheel`，第一次启动会把短语复制过来。
 
 ## 导入导出
 

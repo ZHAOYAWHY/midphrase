@@ -212,8 +212,14 @@ def _bind_win32() -> None:
 
 
 def data_dir() -> Path:
-    root = os.environ.get("APPDATA") or str(Path.home())
-    return Path(root) / "PhraseWheel"
+    root = Path(os.environ.get("APPDATA") or Path.home())
+    current = root / "midphrase"
+    legacy = root / "PhraseWheel" / "phrases.json"
+    target = current / "phrases.json"
+    if legacy.is_file() and not target.is_file():
+        current.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(legacy.read_bytes())
+    return current
 
 
 def now_ms() -> int:
@@ -660,7 +666,7 @@ class App:
         window_class.hInstance = kernel32.GetModuleHandleW(None)
         window_class.lpszClassName = class_name
         user32.RegisterClassW(ctypes.byref(window_class))
-        hwnd = user32.CreateWindowExW(0, class_name, "PhraseWheel", 0, 0, 0, 0, 0, 0, None, window_class.hInstance, None)
+        hwnd = user32.CreateWindowExW(0, class_name, "中键短语", 0, 0, 0, 0, 0, 0, None, window_class.hInstance, None)
         return hwnd
 
     def _add_tray_icon(self) -> None:
