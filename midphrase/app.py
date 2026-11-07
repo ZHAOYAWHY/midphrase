@@ -35,7 +35,7 @@ from midphrase.logic import (
     merge_phrases,
     parse_phrase_file,
 )
-from midphrase.overlay import GlassPopup, place_popup, render_popup, render_tray_icon
+from midphrase.overlay import GlassPopup, bind_window_api, place_popup, render_popup, render_tray_icon
 
 log = logging.getLogger("midphrase")
 
@@ -47,6 +47,8 @@ WM_RBUTTONUP = 0x0205
 WM_LBUTTONUP = 0x0202
 WM_QUIT = 0x0012
 WM_APP = 0x8000
+WM_OPEN_EDITOR = WM_APP + 1
+TRAY_CLASS = "PhraseWheelTray"
 LLMHF_INJECTED = 0x00000001
 HC_ACTION = 0
 GWL_EXSTYLE = -20
@@ -169,6 +171,7 @@ class NOTIFYICONDATAW(ctypes.Structure):
 
 
 def _bind_win32() -> None:
+    bind_window_api()
     user32.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
     user32.CallNextHookEx.restype = LRESULT
     user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
@@ -373,12 +376,18 @@ class App:
             user32.PostThreadMessageW(self.hook_thread_id, WM_QUIT, 0, 0)
 
     def _hook_thread(self) -> None:
-        self.hook_thread_id = kernel32.GetCurrentThreadId()
-        self.tray_hwnd = self._create_tray_window()
-        self.hook = user32.SetWindowsHookExW(WH_MOUSE_LL, self.hook_proc, None, 0)
-        log.info("hook installed=%s", bool(self.hook))
-        if self.tray_hwnd:
-            self._add_tray_icon()
+        try:
+            self.hook_thread_id = kernel32.GetCurrentThreadId()
+            self.tray_hwnd = self._create_tray_window()
+            self.hook = user32.SetWindowsHookExW(WH_MOUSE_LL, self.hook_proc, None, 0)
+            log.info("hook installed=%s", bool(self.hook))
+            if self.tray_hwnd:
+                self._add_tray_icon()
+            else:
+                log.error("tray window missing")
+        except Exception:
+            log.exception("hook thread failed to start")
+            return
         message = wintypes.MSG()
         while self.running and user32.GetMessageW(ctypes.byref(message), None, 0, 0) > 0:
             user32.TranslateMessage(ctypes.byref(message))
@@ -660,7 +669,7 @@ class App:
         self.editor = win
 
     def _create_tray_window(self):
-        class_name = "PhraseWheelTray"
+        class_name = TRAY_CLASS
         window_class = WNDCLASSW()
         window_class.lpfnWndProc = self.wnd_proc
         window_class.hInstance = kernel32.GetModuleHandleW(None)
@@ -688,6 +697,9 @@ class App:
         log.info("tray icon=%s", bool(ok))
 
     def _tray_proc(self, hwnd, msg, wparam, lparam):
+        if msg == WM_OPEN_EDITOR:
+            self.events.put(("edit",))
+            return 0
         if msg == WM_APP and int(lparam) in (WM_RBUTTONUP, WM_LBUTTONUP):
             self._show_tray_menu(hwnd)
             return 0
@@ -867,6 +879,18 @@ def _tell_already_running() -> None:
     )
 
 
+def _ask_running_instance_to_open() -> bool:
+    """Ask the instance that already holds the mutex to open its editor."""
+    user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+    user32.FindWindowW.restype = wintypes.HWND
+    user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.PostMessageW.restype = wintypes.BOOL
+    hwnd = user32.FindWindowW(TRAY_CLASS, None)
+    if not hwnd:
+        return False
+    return bool(user32.PostMessageW(hwnd, WM_OPEN_EDITOR, 0, 0))
+
+
 def _single_instance() -> bool:
     kernel32.CreateMutexW(None, False, "Local\\PhraseWheel.single")
     return kernel32.GetLastError() != ERROR_ALREADY_EXISTS
@@ -882,7 +906,9 @@ def main() -> None:
     )
     if not _single_instance():
         log.info("already running")
-        _tell_already_running()
+        if not _ask_running_instance_to_open():
+            _tell_already_running()
+            time.sleep(2)
         return
     _bind_win32()
     if "--edit" in sys.argv:

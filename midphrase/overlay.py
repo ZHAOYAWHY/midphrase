@@ -8,6 +8,7 @@ from ctypes import wintypes
 from midphrase.logic import PAD, PANEL_WIDTH, PopupMetrics, SHADOW, popup_metrics
 
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
 gdi32 = ctypes.windll.gdi32
 gdiplus = ctypes.windll.gdiplus
 
@@ -351,6 +352,35 @@ def place_popup(press_x: int, press_y: int, metrics: PopupMetrics) -> tuple[int,
     return left, top
 
 
+def bind_window_api() -> None:
+    """Declare handle-returning Win32 signatures.
+
+    Without these, ctypes truncates handles to 32 bits and CreateWindowExW
+    raises OverflowError whenever the module base sits above 2 GB.
+    """
+    kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+    kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+    user32.RegisterClassW.argtypes = [ctypes.c_void_p]
+    user32.RegisterClassW.restype = wintypes.WORD
+    user32.CreateWindowExW.argtypes = [
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        wintypes.HWND,
+        wintypes.HMENU,
+        wintypes.HINSTANCE,
+        ctypes.c_void_p,
+    ]
+    user32.CreateWindowExW.restype = wintypes.HWND
+    user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.DefWindowProcW.restype = ctypes.c_ssize_t
+
+
 class GlassPopup:
     def __init__(self) -> None:
         self.hwnd = None
@@ -360,7 +390,8 @@ class GlassPopup:
     def _ensure(self) -> None:
         if self.hwnd:
             return
-        instance = ctypes.windll.kernel32.GetModuleHandleW(None)
+        bind_window_api()
+        instance = kernel32.GetModuleHandleW(None)
         window_class = WNDCLASSW()
         window_class.lpfnWndProc = ctypes.cast(self._proc, ctypes.c_void_p)
         window_class.hInstance = instance
