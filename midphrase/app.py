@@ -354,7 +354,6 @@ class App:
         threading.Thread(target=self._hook_thread, name="PhraseWheelHook", daemon=True).start()
         threading.Thread(target=self._timer_thread, name="PhraseWheelTimer", daemon=True).start()
         self.root.after(30, self._pump_ui)
-        self.root.after(200, self._open_editor)
         log.info("ui ready, %s phrases", len(self.phrases))
         self.root.mainloop()
         self.shutdown()
