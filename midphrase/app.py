@@ -354,6 +354,7 @@ class App:
         threading.Thread(target=self._hook_thread, name="PhraseWheelHook", daemon=True).start()
         threading.Thread(target=self._timer_thread, name="PhraseWheelTimer", daemon=True).start()
         self.root.after(30, self._pump_ui)
+        self.root.after(200, self._open_editor)
         log.info("ui ready, %s phrases", len(self.phrases))
         self.root.mainloop()
         self.shutdown()
@@ -677,8 +678,14 @@ class App:
         icon.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP
         icon.uCallbackMessage = WM_APP
         icon.hIcon = render_tray_icon(max(32, int(user32.GetSystemMetrics(49))))
-        icon.szTip = "短语列表 — 长按中键"
+        icon.szTip = "中键短语 — 长按中键"
         ok = shell32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(icon))
+        if ok:
+            icon.uFlags = 0x10  # NIF_INFO
+            icon.szInfoTitle = "中键短语已启动"
+            icon.szInfo = "图标在任务栏右下角。看不到时，点开旁边的箭头。长按鼠标中键使用。"
+            icon.dwInfoFlags = 1
+            shell32.Shell_NotifyIconW(1, ctypes.byref(icon))  # NIM_MODIFY
         log.info("tray icon=%s", bool(ok))
 
     def _tray_proc(self, hwnd, msg, wparam, lparam):
@@ -850,6 +857,17 @@ def _enable_dpi() -> None:
             log.debug("dpi awareness unavailable", exc_info=True)
 
 
+def _tell_already_running() -> None:
+    user32.MessageBoxW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT]
+    user32.MessageBoxW.restype = ctypes.c_int
+    user32.MessageBoxW(
+        None,
+        "中键短语已在运行。\n请看任务栏右下角的托盘图标；如果没有，点开旁边的箭头。",
+        "中键短语",
+        0x00000040 | 0x00040000 | 0x00010000,
+    )
+
+
 def _single_instance() -> bool:
     kernel32.CreateMutexW(None, False, "Local\\PhraseWheel.single")
     return kernel32.GetLastError() != ERROR_ALREADY_EXISTS
@@ -865,6 +883,7 @@ def main() -> None:
     )
     if not _single_instance():
         log.info("already running")
+        _tell_already_running()
         return
     _bind_win32()
     if "--edit" in sys.argv:
